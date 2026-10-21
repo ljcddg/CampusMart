@@ -1,5 +1,6 @@
 package com.campusmart.trade.controller;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.campusmart.common.constant.AuthConstants;
 import com.campusmart.common.exception.BizException;
 import com.campusmart.common.result.Result;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.LinkedHashMap;
@@ -59,6 +61,15 @@ public class SeckillController {
     @GetMapping("/activity/{activityId}")
     public Result<SeckillActivity> getActivity(@PathVariable("activityId") Long activityId) {
         return Result.success(seckillService.getActivity(activityId));
+    }
+
+    /**
+     * 前台活动列表，游客可访问。
+     */
+    @GetMapping("/activity/list")
+    public Result<IPage<SeckillActivity>> pageActivities(@RequestParam(defaultValue = "1") Integer pageNum,
+                                                         @RequestParam(defaultValue = "10") Integer pageSize) {
+        return Result.success(seckillService.pageActivities(pageNum, pageSize));
     }
 
     /**

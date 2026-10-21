@@ -41,7 +41,15 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
             "/user/login",
             "/user/register",
             "/product/page",
-            "/product/*"
+            "/product/*",
+            "/trade/seckill/activity/list",
+            "/trade/seckill/stock/*"
+    );
+
+    /** 前端静态资源后缀，直接放行，不参与鉴权 */
+    private static final List<String> STATIC_SUFFIX = List.of(
+            ".html", ".css", ".js", ".mjs", ".ico", ".png", ".jpg", ".jpeg",
+            ".svg", ".webp", ".woff2", ".json", ".map", ".txt"
     );
 
     private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
@@ -52,7 +60,7 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         String path = exchange.getRequest().getURI().getPath();
-        if (isWhiteList(path)) {
+        if (isStaticResource(path) || isWhiteList(path)) {
             // 白名单也清掉伪造头，保证下游不会拿到不可信的身份信息
             return chain.filter(exchange.mutate().request(cleanHeaders(exchange.getRequest())).build());
         }
@@ -84,6 +92,14 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
                 })
                 .build();
         return chain.filter(exchange.mutate().request(newRequest).build());
+    }
+
+    private boolean isStaticResource(String path) {
+        if ("/".equals(path) || path.startsWith("/assets/")) {
+            return true;
+        }
+        String lower = path.toLowerCase();
+        return STATIC_SUFFIX.stream().anyMatch(lower::endsWith);
     }
 
     private boolean isWhiteList(String path) {

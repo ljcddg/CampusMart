@@ -204,7 +204,7 @@ java -jar trade-service/target/trade-service-1.1.0.jar
 java -jar gateway-service/target/gateway-service-1.1.0.jar
 ```
 
-统一从网关 `http://localhost:7000` 访问，下游服务不对外暴露。
+统一从网关 `http://localhost:7000` 访问，下游服务不对外暴露。浏览器直接打开该地址即为前端页面，无需单独启动前端服务。
 
 ### 4. 接口清单
 
@@ -219,6 +219,7 @@ java -jar gateway-service/target/gateway-service-1.1.0.jar
 | PUT | `/product/{id}` | 修改商品 | 是 |
 | DELETE | `/product/{id}` | 下架商品 | 是 |
 | POST | `/trade/seckill/activity` | 创建秒杀活动 | 否 |
+| GET | `/trade/seckill/activity/list` | 秒杀活动列表（前端用） | 否 |
 | POST | `/trade/seckill/preheat/{activityId}` | 活动预热（库存入 Redis） | 否 |
 | POST | `/trade/seckill/{activityId}` | **秒杀下单**（压测目标） | 是 |
 | GET | `/trade/seckill/stock/{activityId}` | Redis / MySQL 库存对账 | 否 |
@@ -247,6 +248,32 @@ curl http://localhost:7000/trade/order/{orderNo}
 # 库存对账
 curl http://localhost:7000/trade/seckill/stock/1
 ```
+
+## 前端页面
+
+前端与后端**同源部署**，随网关一起打包，浏览器打开 `http://localhost:7000` 即可使用，无需另起前端服务。
+
+| 路由 | 页面 | 关键交互 |
+| --- | --- | --- |
+| `#/` | 首页 | 秒杀入口、商品列表分页、在售数量统计 |
+| `#/product/:id` | 商品详情 | 缓存链路读详情、普通下单 |
+| `#/seckill` | 秒杀专场 | 倒计时、剩余库存、抢购、订单状态轮询 |
+| `#/publish` | 发布闲置 | 表单校验 + 商品卡片实时预览 |
+| `#/orders` | 我的订单 | 处理中订单自动刷新、失败原因展示 |
+| `#/login` | 登录 / 注册 | 签发 JWT 存 localStorage，401 自动登出 |
+
+实现方式：原生 ES module + hash 路由 + 自建设计令牌，代码位于 `gateway-service/src/main/resources/static/`。
+
+### 为什么不做前端工程化
+
+| 取舍 | 理由 |
+| --- | --- |
+| 不引入 Vite / React | 项目重点是后端并发链路，前端只承担演示与验收；多一层构建就多一套部署步骤 |
+| 静态资源交给网关 | 与接口同源，省掉 CORS 与反向代理配置，也验证了网关对静态资源的放行规则 |
+| 秒杀后轮询订单 | 订单由 MQ 异步生成，下单接口返回 `orderNo` 而非订单实体，前端轮询 `GET /trade/order/{orderNo}` 直到状态落定 |
+| 商品图用占位服务 | 演示数据不带图片，前端按商品 ID 生成稳定占位图；发布时填 `coverImage` 即用真实图 |
+
+网关的 `AuthGlobalFilter` 对静态资源与白名单接口放行，业务接口仍需 JWT，避免前端页面被鉴权拦在门外。
 
 ## JMeter 压测方案
 
@@ -300,11 +327,26 @@ UPDATE seckill_activity SET stock = 100, version = 0 WHERE id = 1;
 ## 目录结构
 
 ```
-trade-service/src/main/java/com/campusmart/trade
-├── component/SeckillStockRedisService.java    Lua 预扣与回补封装
-├── controller/                                SeckillController / OrderController
-├── feign/ProductFeignClient.java              普通下单远程扣库存
-├── mapper/                                    OrderMapper / SeckillActivityMapper
-├── mq/                                        Producer / Consumer
-└── service/impl/                              SeckillServiceImpl / OrderServiceImpl
+CampusMart
+├── campusmart-common/                  统一响应、异常、JWT、Redis Key 常量
+├── gateway-service/
+│   ├── filter/AuthGlobalFilter.java    JWT 鉴权 + 静态资源放行
+│   ├── config/RateLimitConfig.java     限流 key 解析
+│   └── resources/static/               前端单页应用
+│       ├── index.html
+│       └── assets/
+│           ├── app.js                  hash 路由与页面骨架
+│           ├── api.js                  请求封装与 JWT 存取
+│           ├── ui.js                   格式化、Toast、骨架屏、空状态
+│           ├── styles.css              设计令牌与全部样式
+│           └── views/                  home / product / seckill / publish / orders / auth
+├── product-service/
+│   ├── component/ProductBloomFilter.java   布隆过滤器维护
+│   └── service/impl/ProductServiceImpl.java Cache-Aside 读写
+├── trade-service/
+│   ├── component/SeckillStockRedisService.java  Lua 预扣与回补
+│   ├── mq/                                       Producer / Consumer
+│   ├── feign/ProductFeignClient.java             普通下单远程扣库存
+│   └── service/impl/                             SeckillServiceImpl / OrderServiceImpl
+└── sql/init.sql                        建库建表与演示数据
 ```

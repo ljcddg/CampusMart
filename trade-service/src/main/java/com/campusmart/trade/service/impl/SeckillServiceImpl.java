@@ -1,6 +1,9 @@
 package com.campusmart.trade.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.campusmart.common.constant.RedisKeys;
 import com.campusmart.common.exception.BizException;
 import com.campusmart.common.result.ResultCode;
@@ -166,10 +169,18 @@ public class SeckillServiceImpl implements SeckillService {
         return activity;
     }
 
+    @Override
+    public IPage<SeckillActivity> pageActivities(Integer pageNum, Integer pageSize) {
+        Page<SeckillActivity> page = new Page<>(
+                pageNum == null || pageNum < 1 ? 1 : pageNum,
+                pageSize == null || pageSize < 1 ? 10 : pageSize);
+        return activityMapper.selectPage(page,
+                new LambdaQueryWrapper<SeckillActivity>().orderByDesc(SeckillActivity::getStartTime));
+    }
+
     /**
      * Redis 库存 key 缺失时，回查数据库给出准确原因（未开始 / 已结束 / 已售罄）。
-     */
-    private ResultCode resolveActivityState(Long activityId) {
+     */    private ResultCode resolveActivityState(Long activityId) {
         SeckillActivity activity = activityMapper.selectById(activityId);
         if (activity == null) {
             return ResultCode.SECKILL_NOT_EXIST;

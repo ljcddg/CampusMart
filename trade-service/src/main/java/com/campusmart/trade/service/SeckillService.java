@@ -1,5 +1,6 @@
 package com.campusmart.trade.service;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.campusmart.trade.dto.SeckillActivityCreateDTO;
 import com.campusmart.trade.dto.SeckillResultVO;
 import com.campusmart.trade.entity.SeckillActivity;
@@ -19,4 +20,9 @@ public interface SeckillService {
     Long createActivity(SeckillActivityCreateDTO dto);
 
     SeckillActivity getActivity(Long activityId);
+
+    /**
+     * 秒杀活动列表（前台展示用），按开始时间倒序。
+     */
+    IPage<SeckillActivity> pageActivities(Integer pageNum, Integer pageSize);
 }
